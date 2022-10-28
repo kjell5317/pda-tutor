@@ -1,0 +1,12 @@
+{
+  "stud_ip": {
+    "name": "USERNAME",
+    "password": "PASSWORD"
+  },
+  "folder_id": {
+    "01": "FOLDER_ID"
+  },
+  "tutors": 8,
+  "url": "URL",
+  "downloadPrefix": "DOWNLOAD_FOLDER"
+}
