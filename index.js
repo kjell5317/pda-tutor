@@ -16,16 +16,32 @@ class StudIP {
   }
 
   async getAllFilesInFolder(blatt) {
-    let folderId = config.folder_id[blatt];
-    const files = await this.apiRequest(`folder/${folderId}/files`);
-    const allFiles = [];
-
-    if (!files) return allFiles;
-    for (const file in files.collection) allFiles.push(files.collection[file]);
-    return allFiles;
+    let driver = await new Builder().forBrowser("chrome").build();
+    let result = [];
+    try {
+      await driver.get(
+        `https://elearning.uni-oldenburg.de/dispatch.php/course/files/index/${config.folder_id[blatt]}?cid=${config.course_id}`
+      );
+      await driver
+        .findElement(By.css("#username"))
+        .sendKeys(config.stud_ip.name);
+      await driver
+        .findElement(By.css("#password"))
+        .sendKeys(config.stud_ip.password, Key.RETURN);
+      await driver.wait(until.elementLocated(By.css("tbody.files tr")), 10000);
+      let files = await driver.findElements(By.css("tbody.files tr"));
+      for (const file of files) {
+        let id = (await file.getAttribute("id")).replace("fileref_", "");
+        result.push(await this.apiRequest(`file/${id}`));
+      }
+    } finally {
+      await driver.quit();
+    }
+    return result;
   }
 
   async sortFiles(files) {
+    if (!files) return;
     let authors = {};
     let sortedFiles = {};
     for (const file of files) {
@@ -67,7 +83,6 @@ class StudIP {
       default:
         response = await response.json();
     }
-
     return response;
   }
 }
@@ -75,10 +90,11 @@ class StudIP {
 const config = require("./config.json");
 
 const fetch = require("node-fetch");
+const { Builder, By, Key, until } = require("selenium-webdriver");
 const fs = require("fs");
 
 let blatt = process.argv.slice(2)[0];
-if (blatt < 1 || blatt > 13)
+if (blatt < 1 || blatt > config.maxBlatt)
   throw new Error("Es ist kein Übungsblatt mit dieser Nummer vorhanden");
 if (blatt < 10) blatt = "0" + blatt;
 
@@ -89,21 +105,29 @@ if (prio < 1 || prio > config.tutors)
 if (blatt == null || prio == null)
   throw new Error("Blatt oder Priorität nicht definiert");
 
+let all = false;
+if (process.argv.slice(2)[2] === "-a" || process.argv.slice(2)[2] === "--all") {
+  all = true;
+}
+
 let studIP = new StudIP();
 (async function () {
   let files = await studIP.getAllFilesInFolder(blatt);
   let sortedFiles = await studIP.sortFiles(files);
+
+  if (!sortedFiles) return;
   let length = Math.floor(sortedFiles.length / config.tutors);
   let rest = sortedFiles.length % config.tutors;
   console.log(length + "+" + rest);
-  await studIP.downloadFiles(
-    sortedFiles.slice((prio - 1) * length, (prio - 1) * length + length)
+
+  let download = sortedFiles.slice(
+    (prio - 1) * length,
+    (prio - 1) * length + length
   );
   for (i = 0; i < rest; i++) {
     if (prio == i) {
-      await studIP.downloadFiles([
-        sortedFiles[sortedFiles.length - 1 - rest + i],
-      ]);
+      download.push(sortedFiles[sortedFiles.length - 1 - rest + i]);
     }
   }
+  await studIP.downloadFiles(download);
 })();

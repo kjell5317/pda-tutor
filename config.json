@@ -7,6 +7,8 @@
     "01": "FOLDER_ID"
   },
   "tutors": 8,
+  "maxBlatt": 13,
   "url": "URL",
+  "course_id": "COURSE_ID",
   "downloadPrefix": "DOWNLOAD_FOLDER"
 }
