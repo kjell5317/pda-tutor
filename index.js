@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 class StudIP {
-  async downloadFiles(sortedFiles) {
+  async downloadFiles(sortedFiles, blatt) {
     if (!sortedFiles) return;
-    console.info(`Downloading ${sortedFiles.length} files.`);
+    console.info(`Downloading ${sortedFiles.length} files`);
     for (const file of sortedFiles) {
       const path = `${config.downloadPrefix}/UB${blatt}/${file.name}`;
       if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
@@ -12,6 +12,12 @@ class StudIP {
       const data = await this.apiRequest(`/file/${file.id}/download`, "file");
       const buffer = Buffer.from(data);
       fs.writeFile(path, buffer, "binary", () => {});
+
+      if (!fs.existsSync(path.replace(".zip", ""))) {
+        fs.mkdirSync(path.replace(".zip", ""));
+      }
+      exec(`unzip ${path} -d ${path.replace(".zip", "")}`);
+      fs.unlinkSync(path);
     }
   }
 
@@ -40,8 +46,10 @@ class StudIP {
     return result;
   }
 
-  async sortFiles(files) {
+  async sortFiles(files, all) {
     if (!files) return;
+    if (!all)
+      files = files.filter((file) => file.name.match(new RegExp(config.regEx)));
     let authors = {};
     let sortedFiles = {};
     for (const file of files) {
@@ -92,28 +100,60 @@ const config = require("./config.json");
 const fetch = require("node-fetch");
 const { Builder, By, Key, until } = require("selenium-webdriver");
 const fs = require("fs");
+const { exec } = require("child_process");
 
-let blatt = process.argv.slice(2)[0];
-if (blatt < 1 || blatt > config.maxBlatt)
-  throw new Error("Es ist kein Übungsblatt mit dieser Nummer vorhanden");
-if (blatt < 10) blatt = "0" + blatt;
+var argv = require("yargs/yargs")(process.argv.slice(2))
+  .usage("Usage: $0 <Blatt> <Prio> [options]")
+  .alias("a", "all")
+  .boolean("a")
+  .describe("a", "Alle Abgaben berücksichtigen")
+  .command(
+    "$0 <Blatt> <Prio>",
+    "Abgaben verteilen und herunterladen",
+    (yargs) => {
+      yargs
+        .positional("Blatt", {
+          type: "number",
+          describe: "Nummer des Übungsblattes",
+        })
+        .positional("Prio", {
+          type: "number",
+          describe: "Deine Nummer der Tutoren",
+        });
+    }
+  )
+  .check((argv, options) => {
+    if (argv._.length > 0) {
+      return "Zu viele Argumente";
+    }
+    // Blatt
+    if (argv.Blatt == null || isNaN(argv.Blatt)) {
+      return "Bitte gib ein Übungsblatt an";
+    }
+    if (argv.Blatt < 1 || argv.Blatt > config.maxBlatt) {
+      return "Es ist kein Übungsblatt mit dieser Nummer vorhanden";
+    }
+    if (argv.Blatt < 10) argv.Blatt = "0" + argv.Blatt;
+    // Prio
+    if (argv.Prio == null || isNaN(argv.Prio)) {
+      return "Bitte gib eine Priorität an";
+    }
+    if (argv.Prio < 1 || argv.Prio > config.tutors) {
+      return "Es gibt nicht genügend Tutoren";
+    }
+    return true;
+  })
+  .help("h")
+  .alias("h", "help").argv;
 
-let prio = process.argv.slice(2)[1];
-if (prio < 1 || prio > config.tutors)
-  throw new Error("Es gibt nicht genügend Tutoren");
-
-if (blatt == null || prio == null)
-  throw new Error("Blatt oder Priorität nicht definiert");
-
+// All
 let all = false;
-if (process.argv.slice(2)[2] === "-a" || process.argv.slice(2)[2] === "--all") {
-  all = true;
-}
+if (argv.a) all = true;
 
 let studIP = new StudIP();
 (async function () {
-  let files = await studIP.getAllFilesInFolder(blatt);
-  let sortedFiles = await studIP.sortFiles(files);
+  let files = await studIP.getAllFilesInFolder(argv.Blatt);
+  let sortedFiles = await studIP.sortFiles(files, all);
 
   if (!sortedFiles) return;
   let length = Math.floor(sortedFiles.length / config.tutors);
@@ -121,13 +161,13 @@ let studIP = new StudIP();
   console.log(length + "+" + rest);
 
   let download = sortedFiles.slice(
-    (prio - 1) * length,
-    (prio - 1) * length + length
+    (argv.Prio - 1) * length,
+    (argv.Prio - 1) * length + length
   );
   for (i = 0; i < rest; i++) {
-    if (prio == i) {
+    if (argv.Prio == i) {
       download.push(sortedFiles[sortedFiles.length - 1 - rest + i]);
     }
   }
-  await studIP.downloadFiles(download);
+  await studIP.downloadFiles(download, argv.Blatt);
 })();
