@@ -16,8 +16,8 @@ class StudIP {
       if (!fs.existsSync(path.replace(".zip", ""))) {
         fs.mkdirSync(path.replace(".zip", ""));
       }
-      exec(`unzip ${path} -d ${path.replace(".zip", "")}`);
-      fs.unlinkSync(path);
+      // exec(`unzip ${path} -d ${path.replace(".zip", "")}`);
+      // fs.unlinkSync(path);
     }
   }
 
@@ -103,7 +103,7 @@ const fs = require("fs");
 const { exec } = require("child_process");
 
 var argv = require("yargs/yargs")(process.argv.slice(2))
-  .usage("Usage: $0 <Blatt> <Prio> [options]")
+  .usage("Usage: $0 <Blatt> <Prio> [Options]")
   .alias("a", "all")
   .boolean("a")
   .describe("a", "Alle Abgaben berücksichtigen")
