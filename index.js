@@ -117,7 +117,7 @@ class StudIP {
   }
 }
 
-const config = require("./_config.json");
+const config = require("./config.json");
 
 const fetch = require("node-fetch");
 const { Builder, By, Key, until } = require("selenium-webdriver");
