@@ -9,3 +9,5 @@
 1. Install [chromedriver](http://chromedriver.storage.googleapis.com/index.html) and add it to your PATH
 1. Run `node .` to see all available commands
 1. Run `node .` or `pdaTutor` followed by the number of the current exercise and your section number from 0 - max number of tutors. Example: `pdaTutor 1 1`
+
+*Note: -u / --unzip is only supported for MacOS*
