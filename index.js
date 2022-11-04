@@ -141,6 +141,9 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
     if (argv._.length > 0) {
       return "Zu viele Argumente";
     }
+    if (process.platform !== "darwin" && argv.u) {
+      return "Unzipping is only supported for MacOS";
+    }
     // Blatt
     if (argv.Blatt == null || isNaN(argv.Blatt)) {
       return "Bitte gib ein Übungsblatt an";
