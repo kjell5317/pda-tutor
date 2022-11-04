@@ -12,4 +12,12 @@
 1. Run `node .` or `pdaTutor` to see all available commands
 1. Run `pdaTutor` followed by the number of the current exercise and your section number from 0 - max number of tutors. Example: `pdaTutor 1 1`
 
+## Add Chromedriver to your PATH
+
+1. Create directory `C:\bin`
+1. Copy chromedriver.exe to `C:\bin`
+1. Hit WIN+R and run `sysdm.cpl`
+1. Edit Path under "Erweitert" -> "Umgebungsvariablen"
+1. Double click Path under "Benutzervariablen"
+1. Add `C:\bin` (DO NOT delete anything else)
 *Note: -u / --unzip is only supported for MacOS*
