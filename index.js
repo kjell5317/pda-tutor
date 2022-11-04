@@ -3,7 +3,7 @@
 class StudIP {
   async downloadFiles(sortedFiles, blatt) {
     if (!sortedFiles) return;
-    console.info(`Downloading ${sortedFiles.length} files`);
+    console.info(`Downloading ${sortedFiles.length} files...`);
     for (const file of sortedFiles) {
       const path = `${config.downloadPrefix}/UB${blatt}/${file.name}`;
       if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
@@ -24,7 +24,7 @@ class StudIP {
     let driver = await new Builder().forBrowser("chrome").build();
     let ids = [];
     let result = [];
-    console.log("Getting all file IDs in folder");
+    console.log("Getting all file IDs in folder...");
     try {
       await driver.get(
         `https://elearning.uni-oldenburg.de/dispatch.php/course/files/index/${config.folder_id[blatt]}?cid=${config.course_id}`
@@ -47,7 +47,7 @@ class StudIP {
     } finally {
       await driver.quit();
     }
-    console.log(`Getting metadata of ${ids.length} files`);
+    console.log(`Getting metadata of ${ids.length} files...`);
     for (const id of ids) {
       result.push(await this.apiRequest(`file/${id}`));
     }
@@ -56,8 +56,18 @@ class StudIP {
 
   async sortFiles(files, all) {
     if (!files) return;
-    if (!all)
+    if (!all) {
+      let wrong = files
+        .filter((file) => !file.name.match(new RegExp(config.regEx)))
+        .map((file) => file.user_id)
+        .filter((v, i, a) => a.indexOf(v) === i);
+      if (wrong.length > 0) console.log("Studenten mit falscher Abgabe:");
+      for (const user of wrong) {
+        console.log("\t" + (await this.apiRequest(`user/${user}`)).email);
+      }
+
       files = files.filter((file) => file.name.match(new RegExp(config.regEx)));
+    }
     let authors = {};
     let sortedFiles = {};
     for (const file of files) {
@@ -107,7 +117,7 @@ class StudIP {
   }
 }
 
-const config = require("./config.json");
+const config = require("./_config.json");
 
 const fetch = require("node-fetch");
 const { Builder, By, Key, until } = require("selenium-webdriver");
