@@ -13,35 +13,43 @@ class StudIP {
       const buffer = Buffer.from(data);
       fs.writeFile(path, buffer, "binary", () => {});
 
-      if (!fs.existsSync(path.replace(".zip", ""))) {
-        fs.mkdirSync(path.replace(".zip", ""));
+      if (argv.u) {
+        await exec(`open ${path}`);
+        setTimeout(() => fs.unlinkSync(path), 1000);
       }
-      // exec(`unzip ${path} -d ${path.replace(".zip", "")}`);
-      // fs.unlinkSync(path);
     }
   }
 
   async getAllFilesInFolder(blatt) {
     let driver = await new Builder().forBrowser("chrome").build();
+    let ids = [];
     let result = [];
+    console.log("Getting all file IDs in folder");
     try {
       await driver.get(
         `https://elearning.uni-oldenburg.de/dispatch.php/course/files/index/${config.folder_id[blatt]}?cid=${config.course_id}`
       );
-      await driver
-        .findElement(By.css("#username"))
-        .sendKeys(config.stud_ip.name);
-      await driver
-        .findElement(By.css("#password"))
-        .sendKeys(config.stud_ip.password, Key.RETURN);
+      try {
+        await driver
+          .findElement(By.css("#username"))
+          .sendKeys(config.stud_ip.name);
+        await driver
+          .findElement(By.css("#password"))
+          .sendKeys(config.stud_ip.password, Key.RETURN);
+      } catch (err) {
+        console.log("You are already logged in");
+      }
       await driver.wait(until.elementLocated(By.css("tbody.files tr")), 10000);
       let files = await driver.findElements(By.css("tbody.files tr"));
       for (const file of files) {
-        let id = (await file.getAttribute("id")).replace("fileref_", "");
-        result.push(await this.apiRequest(`file/${id}`));
+        ids.push((await file.getAttribute("id")).replace("fileref_", ""));
       }
     } finally {
       await driver.quit();
+    }
+    console.log(`Getting metadata of ${ids.length} files`);
+    for (const id of ids) {
+      result.push(await this.apiRequest(`file/${id}`));
     }
     return result;
   }
@@ -59,7 +67,11 @@ class StudIP {
       sortedFiles[file.user_id] = file;
     }
     sortedFiles = Object.values(sortedFiles);
-    console.log(files.length + "+" + sortedFiles.length);
+    console.log(
+      all
+        ? `${sortedFiles.length} unique files found`
+        : `${sortedFiles.length} unique und correct named files found`
+    );
 
     return sortedFiles;
   }
@@ -95,18 +107,21 @@ class StudIP {
   }
 }
 
-const config = require("./config.json");
+const config = require("./_config.json");
 
 const fetch = require("node-fetch");
 const { Builder, By, Key, until } = require("selenium-webdriver");
 const fs = require("fs");
-const { exec } = require("child_process");
+const exec = require("await-exec");
 
 var argv = require("yargs/yargs")(process.argv.slice(2))
   .usage("Usage: $0 <Blatt> <Prio> [Options]")
-  .alias("a", "all")
   .boolean("a")
+  .alias("a", "all")
   .describe("a", "Alle Abgaben berücksichtigen")
+  .boolean("u")
+  .alias("u", "unzip")
+  .describe("u", "Unzip richtig benannte Abgaben")
   .command(
     "$0 <Blatt> <Prio>",
     "Abgaben verteilen und herunterladen",
@@ -130,7 +145,7 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
     if (argv.Blatt == null || isNaN(argv.Blatt)) {
       return "Bitte gib ein Übungsblatt an";
     }
-    if (argv.Blatt < 1 || argv.Blatt > config.maxBlatt) {
+    if (argv.Blatt < 1 || argv.Blatt > config.folder_id.length) {
       return "Es ist kein Übungsblatt mit dieser Nummer vorhanden";
     }
     if (argv.Blatt < 10) argv.Blatt = "0" + argv.Blatt;
@@ -148,7 +163,7 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
 
 // All
 let all = false;
-if (argv.a) all = true;
+if (argv.a && !argv.u) all = true;
 
 let studIP = new StudIP();
 (async function () {
@@ -158,13 +173,13 @@ let studIP = new StudIP();
   if (!sortedFiles) return;
   let length = Math.floor(sortedFiles.length / config.tutors);
   let rest = sortedFiles.length % config.tutors;
-  console.log(length + "+" + rest);
+  console.log(`${length} files for each tutor and ${rest} left files`);
 
   let download = sortedFiles.slice(
     (argv.Prio - 1) * length,
     (argv.Prio - 1) * length + length
   );
-  for (i = 0; i < rest; i++) {
+  for (i = 1; i <= rest; i++) {
     if (argv.Prio == i) {
       download.push(sortedFiles[sortedFiles.length - 1 - rest + i]);
     }

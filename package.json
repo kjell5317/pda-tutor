@@ -13,6 +13,7 @@
     "pdaTutor": "index.js"
   },
   "dependencies": {
+    "await-exec": "^0.1.2",
     "node-fetch": "^2.6.7",
     "selenium-webdriver": "^4.5.0",
     "yargs": "^17.6.0"

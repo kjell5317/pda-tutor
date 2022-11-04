@@ -1,0 +1,25 @@
+{
+  "stud_ip": {
+    "name": "",
+    "password": ""
+  },
+  "folder_id": {
+    "01": "4e41298c8fa595b706c66c377ca1a6df",
+    "02": "993ada6d5700be0607ddd1c4d052998c",
+    "03": "f73e6fb5737e0c12aefce4c3bca1a89b",
+    "04": "58d685997019802d2d161d3e4d830e06",
+    "05": "c6b7b6b026375a8c4bfcea43262fa63f",
+    "06": "2181bb9cf19384e5975242b1b4afec24",
+    "07": "8541556b874c15f120a977c21e8c5a09",
+    "08": "1537d6f3bfbe42203768beaec19fe9cc",
+    "09": "1f5da76921f5ce63c79863269ca1884a",
+    "10": "ec2f0b6e4881393cc82e0d0247d60b4d",
+    "11": "f59392a1ad7e4e8dc44960e376186b4c",
+    "12": "089ca869f4dbe6e886496c42e79db5b7"
+  },
+  "tutors": 8,
+  "regEx": "^UE\\d{2}_\\w+\\.zip$",
+  "url": "https://elearning.uni-oldenburg.de/api.php/",
+  "course_id": "fc24089554cf82e7d1d076f4829a2d8a",
+  "downloadPrefix": ""
+}
