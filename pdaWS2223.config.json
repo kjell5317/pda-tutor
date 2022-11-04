@@ -18,7 +18,7 @@
     "12": "089ca869f4dbe6e886496c42e79db5b7"
   },
   "tutors": 8,
-  "regEx": "^UE\\d{2}_\\w+\\.zip$",
+  "regEx": "^UE\\d{2}_\\w+(\\[\\d+\\])?\\.zip$",
   "url": "https://elearning.uni-oldenburg.de/api.php/",
   "course_id": "fc24089554cf82e7d1d076f4829a2d8a",
   "downloadPrefix": ""

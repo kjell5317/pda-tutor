@@ -27,7 +27,9 @@ class StudIP {
     console.log("Getting all file IDs in folder...");
     try {
       await driver.get(
-        `https://elearning.uni-oldenburg.de/dispatch.php/course/files/index/${config.folder_id[blatt]}?cid=${config.course_id}`
+        `${config.url.replace("api", "dispatch")}course/files/index/${
+          config.folder_id[blatt]
+        }?cid=${config.course_id}`
       );
       try {
         await driver
@@ -39,11 +41,14 @@ class StudIP {
       } catch (err) {
         console.log("You are already logged in");
       }
-      await driver.wait(until.elementLocated(By.css("tbody.files tr")), 10000);
+      await driver.wait(until.elementLocated(By.css("tbody.files tr")), 5000);
       let files = await driver.findElements(By.css("tbody.files tr"));
       for (const file of files) {
         ids.push((await file.getAttribute("id")).replace("fileref_", ""));
       }
+    } catch (err) {
+      console.log("Es sind keine Dateien in diesem Ordner vorhanden");
+      return;
     } finally {
       await driver.quit();
     }
@@ -123,6 +128,8 @@ const fetch = require("node-fetch");
 const { Builder, By, Key, until } = require("selenium-webdriver");
 const fs = require("fs");
 const exec = require("await-exec");
+const { exit } = require("process");
+const validate = require("jsonschema").validate;
 
 var argv = require("yargs/yargs")(process.argv.slice(2))
   .usage("Usage: $0 <Blatt> <Prio> [Options]")
@@ -178,8 +185,47 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
 let all = false;
 if (argv.a && !argv.u) all = true;
 
+const schema = {
+  type: "object",
+  properties: {
+    stud_ip: {
+      type: "object",
+      properties: {
+        name: { type: "string", pattern: "^\\w{4}\\d{4}$" },
+        password: { type: "string" },
+      },
+      required: ["name", "password"],
+    },
+    folder_id: {
+      type: "object",
+      patternProperties: {
+        "^d+$": { type: "string", minLength: 32, maxLength: 32 },
+      },
+    },
+    tutors: { type: "number" },
+    regEx: { type: "regex" },
+    url: { type: "hostname" },
+    course_id: { type: "string", minLength: 32, maxLength: 32 },
+    downloadPrefix: { type: "string" },
+  },
+  required: [
+    "stud_ip",
+    "folder_id",
+    "tutors",
+    "regEx",
+    "url",
+    "course_id",
+    "downloadPrefix",
+  ],
+};
+
 let studIP = new StudIP();
 (async function () {
+  let res = validate(config, schema);
+  if (!res.valid) {
+    console.log(res.errors);
+    exit();
+  }
   let files = await studIP.getAllFilesInFolder(argv.Blatt);
   let sortedFiles = await studIP.sortFiles(files, all);
 
