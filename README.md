@@ -11,6 +11,7 @@
 1. Run `npm install -g .` to make the `pdaTutor` globally available
 1. Run `node .` or `pdaTutor` to see all available commands
 1. Run `pdaTutor` followed by the number of the current exercise and your section number from 0 - max number of tutors. Example: `pdaTutor 1 1`
+
 *Note: -u / --unzip is only supported for MacOS*
 
 ## Add Chromedriver to your PATH (Windows)
