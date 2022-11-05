@@ -4,6 +4,15 @@ class StudIP {
   async downloadFiles(sortedFiles, blatt) {
     if (!sortedFiles) return;
     console.info(`Downloading ${sortedFiles.length} files...`);
+    fs.writeFile(
+      `${config.downloadPrefix}/UB${blatt}/score_X_${blatt}.csv`,
+      sortedFiles
+        .map((file) => file.name.replace(`UE${blatt}_`, "").replace(".zip", ""))
+        .join(";\n") + ";",
+      (err) => {
+        if (err) console.log(err);
+      }
+    );
     for (const file of sortedFiles) {
       const path = `${config.downloadPrefix}/UB${blatt}/${file.name}`;
       if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
@@ -11,7 +20,9 @@ class StudIP {
       }
       const data = await this.apiRequest(`/file/${file.id}/download`, "file");
       const buffer = Buffer.from(data);
-      fs.writeFile(path, buffer, "binary", () => {});
+      fs.writeFile(path, buffer, "binary", (err) => {
+        if (err) console.log(err);
+      });
 
       if (argv.u) {
         await exec(`open ${path}`);
@@ -198,8 +209,9 @@ const schema = {
     },
     folder_id: {
       type: "object",
+      minLength: 1,
       patternProperties: {
-        "^d+$": { type: "string", minLength: 32, maxLength: 32 },
+        "^.*$": { type: "string", minLength: 32, maxLength: 32 },
       },
     },
     tutors: { type: "number" },
