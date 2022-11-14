@@ -3,7 +3,16 @@
 class StudIP {
   async downloadFiles(sortedFiles, blatt) {
     if (!sortedFiles) return;
-    console.info(`Downloading ${sortedFiles.length} files`);
+    console.info(`Downloading ${sortedFiles.length} files...`);
+    fs.writeFile(
+      `${config.downloadPrefix}/UB${blatt}/score_X_${blatt}.csv`,
+      sortedFiles
+        .map((file) => file.name.replace(`UE${blatt}_`, "").replace(".zip", ""))
+        .join(";\n") + ";",
+      (err) => {
+        if (err) console.log(err);
+      }
+    );
     for (const file of sortedFiles) {
       const path = `${config.downloadPrefix}/UB${blatt}/${file.name}`;
       if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
@@ -11,7 +20,9 @@ class StudIP {
       }
       const data = await this.apiRequest(`/file/${file.id}/download`, "file");
       const buffer = Buffer.from(data);
-      fs.writeFile(path, buffer, "binary", () => {});
+      fs.writeFile(path, buffer, "binary", (err) => {
+        if (err) console.log(err);
+      });
 
       if (argv.u) {
         await exec(`open ${path}`);
@@ -38,10 +49,12 @@ class StudIP {
     let driver = await new Builder().forBrowser("chrome").build();
     let ids = [];
     let result = [];
-    console.log("Getting all file IDs in folder");
+    console.log("Getting all file IDs in folder...");
     try {
       await driver.get(
-        `https://elearning.uni-oldenburg.de/dispatch.php/course/files/index/${config.folder_id[blatt]}?cid=${config.course_id}`
+        `${config.url.replace("api", "dispatch")}course/files/index/${
+          config.folder_id[blatt]
+        }?cid=${config.course_id}`
       );
       try {
         await driver
@@ -53,15 +66,18 @@ class StudIP {
       } catch (err) {
         console.log("You are already logged in");
       }
-      await driver.wait(until.elementLocated(By.css("tbody.files tr")), 10000);
+      await driver.wait(until.elementLocated(By.css("tbody.files tr")), 5000);
       let files = await driver.findElements(By.css("tbody.files tr"));
       for (const file of files) {
         ids.push((await file.getAttribute("id")).replace("fileref_", ""));
       }
+    } catch (err) {
+      console.log("Es sind keine Dateien in diesem Ordner vorhanden");
+      return;
     } finally {
       await driver.quit();
     }
-    console.log(`Getting metadata of ${ids.length} files. This may take a while.`);
+    console.log(`Getting metadata of ${ids.length} files...`);
     for (const id of ids) {
       result.push(await this.apiRequest(`file/${id}`));
     }
@@ -70,8 +86,18 @@ class StudIP {
 
   async sortFiles(files, all) {
     if (!files) return;
-    if (!all)
+    if (!all) {
+      let wrong = files
+        .filter((file) => !file.name.match(new RegExp(config.regEx)))
+        .map((file) => file.user_id)
+        .filter((v, i, a) => a.indexOf(v) === i);
+      if (wrong.length > 0) console.log("Studenten mit falscher Abgabe:");
+      for (const user of wrong) {
+        console.log("\t" + (await this.apiRequest(`user/${user}`)).email);
+      }
+
       files = files.filter((file) => file.name.match(new RegExp(config.regEx)));
+    }
     let authors = {};
     let sortedFiles = {};
     for (const file of files) {
@@ -121,12 +147,14 @@ class StudIP {
   }
 }
 
-const config = require("./_config.json");
+const config = require("./config.json");
 
 const fetch = require("node-fetch");
 const { Builder, By, Key, until } = require("selenium-webdriver");
 const fs = require("fs");
 const exec = require("await-exec");
+const { exit } = require("process");
+const validate = require("jsonschema").validate;
 
 var argv = require("yargs/yargs")(process.argv.slice(2))
   .usage("Usage: $0 <Blatt> <Prio> [Options]")
@@ -155,6 +183,9 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
     if (argv._.length > 0) {
       return "Zu viele Argumente";
     }
+    if (process.platform !== "darwin" && argv.u) {
+      return "Unzipping is only supported for MacOS";
+    }
     // Blatt
     if (argv.Blatt == null || isNaN(argv.Blatt)) {
       return "Bitte gib ein Übungsblatt an";
@@ -179,8 +210,48 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
 let all = false;
 if (argv.a && !argv.u) all = true;
 
+const schema = {
+  type: "object",
+  properties: {
+    stud_ip: {
+      type: "object",
+      properties: {
+        name: { type: "string", pattern: "^\\w{4}\\d{4}$" },
+        password: { type: "string" },
+      },
+      required: ["name", "password"],
+    },
+    folder_id: {
+      type: "object",
+      minLength: 1,
+      patternProperties: {
+        "^.*$": { type: "string", minLength: 32, maxLength: 32 },
+      },
+    },
+    tutors: { type: "number" },
+    regEx: { type: "regex" },
+    url: { type: "hostname" },
+    course_id: { type: "string", minLength: 32, maxLength: 32 },
+    downloadPrefix: { type: "string" },
+  },
+  required: [
+    "stud_ip",
+    "folder_id",
+    "tutors",
+    "regEx",
+    "url",
+    "course_id",
+    "downloadPrefix",
+  ],
+};
+
 let studIP = new StudIP();
 (async function () {
+  let res = validate(config, schema);
+  if (!res.valid) {
+    console.log(res.errors);
+    exit();
+  }
   let files = await studIP.getAllFilesInFolder(argv.Blatt);
   let sortedFiles = await studIP.sortFiles(files, all);
 
