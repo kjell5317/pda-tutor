@@ -20,6 +20,20 @@ class StudIP {
     }
   }
 
+  async createCSV(sortedFiles, blatt) {
+    if (!sortedFiles) return;
+    var filenames = "";
+    for(const file of sortedFiles) {
+      var addon = file.name.slice(5).split(".")
+      filenames = filenames + addon[0] +";" + "\r\n";
+    }
+
+    const path = `${config.downloadPrefix}/UB${blatt}/score_X_${blatt}.csv`;
+    fs.writeFile(path, filenames, "utf8", () => {});
+    console.info("Created score.csv")
+  }
+
+
   async getAllFilesInFolder(blatt) {
     let driver = await new Builder().forBrowser("chrome").build();
     let ids = [];
@@ -47,7 +61,7 @@ class StudIP {
     } finally {
       await driver.quit();
     }
-    console.log(`Getting metadata of ${ids.length} files`);
+    console.log(`Getting metadata of ${ids.length} files. This may take a while.`);
     for (const id of ids) {
       result.push(await this.apiRequest(`file/${id}`));
     }
@@ -185,4 +199,5 @@ let studIP = new StudIP();
     }
   }
   await studIP.downloadFiles(download, argv.Blatt);
+  await studIP.createCSV(download, argv.Blatt);
 })();
