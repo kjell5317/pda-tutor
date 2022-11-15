@@ -1,9 +1,110 @@
 #!/usr/bin/env node
 
+const config = require("./config.json");
+
+const fetch = require("node-fetch");
+const { Builder, By, Key, until } = require("selenium-webdriver");
+const fs = require("fs");
+const exec = require("await-exec");
+const { exit } = require("process");
+const validate = require("jsonschema").validate;
+
+var argv = require("yargs/yargs")(process.argv.slice(2))
+  .usage("Usage: $0 <Blatt> <Prio> [Options]")
+  .boolean("a")
+  .alias("a", "all")
+  .describe("a", "Alle Abgaben berücksichtigen")
+  .boolean("u")
+  .alias("u", "unzip")
+  .describe("u", "Unzip richtig benannte Abgaben")
+  .command(
+    "$0 <Blatt> <Prio>",
+    "Abgaben verteilen und herunterladen",
+    (yargs) => {
+      yargs
+        .positional("Blatt", {
+          type: "number",
+          describe: "Nummer des Übungsblattes",
+        })
+        .positional("Prio", {
+          type: "number",
+          describe: "Deine Nummer der Tutoren",
+        });
+    }
+  )
+  .check((argv, options) => {
+    if (argv._.length > 0) {
+      return "Zu viele Argumente";
+    }
+    if (process.platform !== "darwin" && argv.u) {
+      return "Unzipping is only supported for MacOS";
+    }
+    // Blatt
+    if (argv.Blatt == null || isNaN(argv.Blatt)) {
+      return "Bitte gib ein Übungsblatt an";
+    }
+    if (argv.Blatt < 1 || argv.Blatt > config.folder_id.length) {
+      return "Es ist kein Übungsblatt mit dieser Nummer vorhanden";
+    }
+    if (argv.Blatt < 10) argv.Blatt = "0" + argv.Blatt;
+    // Prio
+    if (argv.Prio == null || isNaN(argv.Prio)) {
+      return "Bitte gib eine Priorität an";
+    }
+    if (argv.Prio < 1 || argv.Prio > config.tutors) {
+      return "Es gibt nicht genügend Tutoren";
+    }
+    return true;
+  })
+  .help("h")
+  .alias("h", "help").argv;
+
+// All
+let all = false;
+if (argv.a && !argv.u) all = true;
+
+const schema = {
+  type: "object",
+  properties: {
+    stud_ip: {
+      type: "object",
+      properties: {
+        name: { type: "string", pattern: "^\\w{4}\\d{4}$" },
+        password: { type: "string" },
+      },
+      required: ["name", "password"],
+    },
+    folder_id: {
+      type: "object",
+      minLength: 1,
+      patternProperties: {
+        "^.*$": { type: "string", minLength: 32, maxLength: 32 },
+      },
+    },
+    tutors: { type: "number" },
+    regEx: { type: "regex" },
+    url: { type: "hostname" },
+    course_id: { type: "string", minLength: 32, maxLength: 32 },
+    downloadPrefix: { type: "string" },
+  },
+  required: [
+    "stud_ip",
+    "folder_id",
+    "tutors",
+    "regEx",
+    "url",
+    "course_id",
+    "downloadPrefix",
+  ],
+};
+
 class StudIP {
   async downloadFiles(sortedFiles, blatt) {
     if (!sortedFiles) return;
     console.info(`Downloading ${sortedFiles.length} files...`);
+    if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
+      fs.mkdirSync(`${config.downloadPrefix}/UB${blatt}`);
+    }
     fs.writeFile(
       `${config.downloadPrefix}/UB${blatt}/score_X_${blatt}.csv`,
       sortedFiles
@@ -15,9 +116,6 @@ class StudIP {
     );
     for (const file of sortedFiles) {
       const path = `${config.downloadPrefix}/UB${blatt}/${file.name}`;
-      if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
-        fs.mkdirSync(`${config.downloadPrefix}/UB${blatt}`);
-      }
       const data = await this.apiRequest(`/file/${file.id}/download`, "file");
       const buffer = Buffer.from(data);
       fs.writeFile(path, buffer, "binary", (err) => {
@@ -133,111 +231,14 @@ class StudIP {
   }
 }
 
-const config = require("./config.json");
-
-const fetch = require("node-fetch");
-const { Builder, By, Key, until } = require("selenium-webdriver");
-const fs = require("fs");
-const exec = require("await-exec");
-const { exit } = require("process");
-const validate = require("jsonschema").validate;
-
-var argv = require("yargs/yargs")(process.argv.slice(2))
-  .usage("Usage: $0 <Blatt> <Prio> [Options]")
-  .boolean("a")
-  .alias("a", "all")
-  .describe("a", "Alle Abgaben berücksichtigen")
-  .boolean("u")
-  .alias("u", "unzip")
-  .describe("u", "Unzip richtig benannte Abgaben")
-  .command(
-    "$0 <Blatt> <Prio>",
-    "Abgaben verteilen und herunterladen",
-    (yargs) => {
-      yargs
-        .positional("Blatt", {
-          type: "number",
-          describe: "Nummer des Übungsblattes",
-        })
-        .positional("Prio", {
-          type: "number",
-          describe: "Deine Nummer der Tutoren",
-        });
-    }
-  )
-  .check((argv, options) => {
-    if (argv._.length > 0) {
-      return "Zu viele Argumente";
-    }
-    if (process.platform !== "darwin" && argv.u) {
-      return "Unzipping is only supported for MacOS";
-    }
-    // Blatt
-    if (argv.Blatt == null || isNaN(argv.Blatt)) {
-      return "Bitte gib ein Übungsblatt an";
-    }
-    if (argv.Blatt < 1 || argv.Blatt > config.folder_id.length) {
-      return "Es ist kein Übungsblatt mit dieser Nummer vorhanden";
-    }
-    if (argv.Blatt < 10) argv.Blatt = "0" + argv.Blatt;
-    // Prio
-    if (argv.Prio == null || isNaN(argv.Prio)) {
-      return "Bitte gib eine Priorität an";
-    }
-    if (argv.Prio < 1 || argv.Prio > config.tutors) {
-      return "Es gibt nicht genügend Tutoren";
-    }
-    return true;
-  })
-  .help("h")
-  .alias("h", "help").argv;
-
-// All
-let all = false;
-if (argv.a && !argv.u) all = true;
-
-const schema = {
-  type: "object",
-  properties: {
-    stud_ip: {
-      type: "object",
-      properties: {
-        name: { type: "string", pattern: "^\\w{4}\\d{4}$" },
-        password: { type: "string" },
-      },
-      required: ["name", "password"],
-    },
-    folder_id: {
-      type: "object",
-      minLength: 1,
-      patternProperties: {
-        "^.*$": { type: "string", minLength: 32, maxLength: 32 },
-      },
-    },
-    tutors: { type: "number" },
-    regEx: { type: "regex" },
-    url: { type: "hostname" },
-    course_id: { type: "string", minLength: 32, maxLength: 32 },
-    downloadPrefix: { type: "string" },
-  },
-  required: [
-    "stud_ip",
-    "folder_id",
-    "tutors",
-    "regEx",
-    "url",
-    "course_id",
-    "downloadPrefix",
-  ],
-};
-
-let studIP = new StudIP();
 (async function () {
   let res = validate(config, schema);
   if (!res.valid) {
     console.log(res.errors);
     exit();
   }
+
+  let studIP = new StudIP();
   let files = await studIP.getAllFilesInFolder(argv.Blatt);
   let sortedFiles = await studIP.sortFiles(files, all);
 
