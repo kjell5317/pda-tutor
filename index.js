@@ -17,6 +17,9 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
   .boolean("u")
   .alias("u", "unzip")
   .describe("u", "Unzip richtig benannte Abgaben")
+  .boolean("m")
+  .alias("m", "mail")
+  .describe("Gibt eine CSV mit den E-Mails von falsch benannten Dateien aus")
   .command(
     "$0 <Blatt> <Prio>",
     "Abgaben verteilen und herunterladen",
@@ -37,7 +40,13 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
       return "Zu viele Argumente";
     }
     if (process.platform !== "darwin" && argv.u) {
-      return "Unzipping is only supported for MacOS";
+      return "Unzipping wird nur unter MacOS unterstützt";
+    }
+    if (argv.u && argv.a) {
+      return "--unzip und --all können nicht zusammen benutzt werden";
+    }
+    if (argv.m && argv.a) {
+      return "--mail und --all können nicht zusammen benutzt werden";
     }
     // Blatt
     if (argv.Blatt == null || isNaN(argv.Blatt)) {
@@ -46,7 +55,9 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
     if (argv.Blatt < 1 || argv.Blatt > config.folder_id.length) {
       return "Es ist kein Übungsblatt mit dieser Nummer vorhanden";
     }
-    if (argv.Blatt < 10) argv.Blatt = "0" + argv.Blatt;
+    if (argv.Blatt < 10) {
+      argv.Blatt = "0" + argv.Blatt;
+    }
     // Prio
     if (argv.Prio == null || isNaN(argv.Prio)) {
       return "Bitte gib eine Priorität an";
@@ -58,10 +69,6 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
   })
   .help("h")
   .alias("h", "help").argv;
-
-// All
-let all = false;
-if (argv.a && !argv.u) all = true;
 
 const schema = {
   type: "object",
@@ -108,8 +115,14 @@ class StudIP {
     fs.writeFile(
       `${config.downloadPrefix}/UB${blatt}/score_X_${blatt}.csv`,
       sortedFiles
-        .map((file) => file.name.replace(`UE${blatt}_`, "").replace(".zip", ""))
+        .map((file) =>
+          file.name
+            .replace(`UE${blatt}_`, "")
+            .replace(".zip", "")
+            .replace("_", " ")
+        )
         .join(";\n") + ";",
+      "utf8",
       (err) => {
         if (err) console.log(err);
       }
@@ -129,7 +142,7 @@ class StudIP {
     }
   }
 
-  async getAllFilesInFolder(blatt) {
+  async getAllFilesInFolder() {
     let driver = await new Builder().forBrowser("chrome").build();
     let ids = [];
     let result = [];
@@ -137,7 +150,7 @@ class StudIP {
     try {
       await driver.get(
         `${config.url.replace("api", "dispatch")}course/files/index/${
-          config.folder_id[blatt]
+          config.folder_id[argv.Blatt]
         }?cid=${config.course_id}`
       );
       try {
@@ -168,19 +181,27 @@ class StudIP {
     return result;
   }
 
-  async sortFiles(files, all) {
+  async sortFiles(files) {
     if (!files) return;
-    if (!all) {
+    if (!argv.a) {
       let wrong = files
-        .filter((file) => !file.name.match(new RegExp(config.regEx)))
+        .filter(
+          (file) =>
+            !file.name.match(
+              new RegExp(config.regEx.replace("\\d{2}", argv.Blatt))
+            )
+        )
         .map((file) => file.user_id)
         .filter((v, i, a) => a.indexOf(v) === i);
       if (wrong.length > 0) console.log("Studenten mit falscher Abgabe:");
+      let output;
       for (const user of wrong) {
-        console.log("\t" + (await this.apiRequest(`user/${user}`)).email);
+        output += (await this.apiRequest(`user/${user}`)).email + ";";
       }
 
-      files = files.filter((file) => file.name.match(new RegExp(config.regEx)));
+      files = files.filter((file) =>
+        file.name.match(new RegExp(config.regEx.replace("\\d{2}", argv.Blatt)))
+      );
     }
     let authors = {};
     let sortedFiles = {};
@@ -192,7 +213,7 @@ class StudIP {
     }
     sortedFiles = Object.values(sortedFiles);
     console.log(
-      all
+      argv.a
         ? `${sortedFiles.length} unique files found`
         : `${sortedFiles.length} unique und correct named files found`
     );
@@ -239,8 +260,8 @@ class StudIP {
   }
 
   let studIP = new StudIP();
-  let files = await studIP.getAllFilesInFolder(argv.Blatt);
-  let sortedFiles = await studIP.sortFiles(files, all);
+  let files = await studIP.getAllFilesInFolder();
+  let sortedFiles = await studIP.sortFiles(files);
 
   if (!sortedFiles) return;
   let length = Math.floor(sortedFiles.length / config.tutors);
