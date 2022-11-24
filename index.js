@@ -19,7 +19,9 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
   .describe("u", "Unzip richtig benannte Abgaben")
   .boolean("m")
   .alias("m", "mail")
-  .describe("Gibt eine CSV mit den E-Mails von falsch benannten Dateien aus")
+  .describe(
+    "Gibt eine CSV-Liste mit den E-Mails von falsch benannten Dateien aus"
+  )
   .command(
     "$0 <Blatt> <Prio>",
     "Abgaben verteilen und herunterladen",
@@ -188,7 +190,7 @@ class StudIP {
         .filter(
           (file) =>
             !file.name.match(
-              new RegExp(config.regEx.replace("\\d{2}", argv.Blatt))
+              new RegExp(config.regEx) // .replace("\\d{2}", argv.Blatt)
             )
         )
         .map((file) => file.user_id)
@@ -199,8 +201,8 @@ class StudIP {
         output += (await this.apiRequest(`user/${user}`)).email + ";";
       }
 
-      files = files.filter((file) =>
-        file.name.match(new RegExp(config.regEx.replace("\\d{2}", argv.Blatt)))
+      files = files.filter(
+        (file) => file.name.match(new RegExp(config.regEx)) // .replace("\\d{2}", argv.Blatt)
       );
     }
     let authors = {};
