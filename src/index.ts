@@ -2,11 +2,11 @@
 
 const config = require("./config.json");
 
-const fetch = require("node-fetch");
-const { Builder, By, Key, until } = require("selenium-webdriver");
-const fs = require("fs");
-const exec = require("await-exec");
-const { exit } = require("process");
+import fetch from "node-fetch";
+import { Builder, By, Key, until } from "selenium-webdriver";
+import { existsSync, mkdirSync, unlinkSync, writeFile } from "fs";
+import { exit } from "process";
+import { exec } from "child_process";
 const validate = require("jsonschema").validate;
 
 var argv = require("yargs/yargs")(process.argv.slice(2))
@@ -37,7 +37,7 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
         });
     }
   )
-  .check((argv, options) => {
+  .check((argv) => {
     if (argv._.length > 0) {
       return "Zu viele Argumente";
     }
@@ -54,7 +54,7 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
     if (argv.Blatt == null || isNaN(argv.Blatt)) {
       return "Bitte gib ein Übungsblatt an";
     }
-    if (argv.Blatt < 1 || argv.Blatt > config.folder_id.length) {
+    if (argv.Blatt < 1 || argv.Blatt > Object.keys(config.folder_id).length) {
       return "Es ist kein Übungsblatt mit dieser Nummer vorhanden";
     }
     if (argv.Blatt < 10) {
@@ -107,21 +107,32 @@ const schema = {
   ],
 };
 
+interface File {
+  name: string;
+  mkdate: number;
+  user_id: string;
+  id: string;
+}
+
+interface User {
+  email: string;
+}
+
 class StudIP {
-  async downloadFiles(sortedFiles, blatt) {
+  async downloadFiles(sortedFiles: File[], blatt: number) {
     if (!sortedFiles) return;
     console.info(`Downloading ${sortedFiles.length} files...`);
-    if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
-      fs.mkdirSync(`${config.downloadPrefix}/UB${blatt}`);
+    if (!existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
+      mkdirSync(`${config.downloadPrefix}/UB${blatt}`);
     }
-    fs.writeFile(
+    writeFile(
       `${config.downloadPrefix}/UB${blatt}/score_X_${blatt}.csv`,
       sortedFiles
         .map((file) =>
           file.name
             .replace(`UE${blatt}_`, "")
             .replace(".zip", "")
-            .replace("_", " ")
+            .replaceAll("_", " ")
         )
         .join(";\n") + ";",
       "utf8",
@@ -131,20 +142,20 @@ class StudIP {
     );
     for (const file of sortedFiles) {
       const path = `${config.downloadPrefix}/UB${blatt}/${file.name}`;
-      const data = await this.apiRequest(`/file/${file.id}/download`, "file");
+      const data = await this.downloadRequest(file.id);
       const buffer = Buffer.from(data);
-      fs.writeFile(path, buffer, "binary", (err) => {
+      writeFile(path, buffer, "binary", (err) => {
         if (err) console.log(err);
       });
 
       if (argv.u) {
-        await exec(`open ${path}`);
-        setTimeout(() => fs.unlinkSync(path), 1000);
+        exec(`open ${path}`);
+        setTimeout(() => unlinkSync(path), 1000);
       }
     }
   }
 
-  async getAllFilesInFolder() {
+  async getAllFilesInFolder(): Promise<File[]> {
     let driver = await new Builder().forBrowser("chrome").build();
     let ids = [];
     let result = [];
@@ -178,31 +189,31 @@ class StudIP {
     }
     console.log(`Getting metadata of ${ids.length} files...`);
     for (const id of ids) {
-      result.push(await this.apiRequest(`file/${id}`));
+      result.push(await this.fileRequest(`file/${id}`));
     }
     return result;
   }
 
-  async sortFiles(files) {
+  async sortFiles(files: File[]): Promise<File[]> {
     if (!files) return;
     if (!argv.a) {
       let wrong = files
         .filter(
           (file) =>
             !file.name.match(
-              new RegExp(config.regEx) // .replace("\\d{2}", argv.Blatt)
+              new RegExp(config.regEx.replace("\\d{2}", argv.Blatt))
             )
         )
         .map((file) => file.user_id)
         .filter((v, i, a) => a.indexOf(v) === i);
       if (wrong.length > 0) console.log("Studenten mit falscher Abgabe:");
-      let output;
+      let output: string;
       for (const user of wrong) {
-        output += (await this.apiRequest(`user/${user}`)).email + ";";
+        output += (await this.userRequest(user)).email + ";";
       }
 
       files = files.filter(
-        (file) => file.name.match(new RegExp(config.regEx)) // .replace("\\d{2}", argv.Blatt)
+        (file) => file.name.match(new RegExp(config.regEx.replace("\\d{2}", argv.Blatt)))
       );
     }
     let authors = {};
@@ -213,18 +224,18 @@ class StudIP {
       authors[file.user_id] = file.mkdate;
       sortedFiles[file.user_id] = file;
     }
-    sortedFiles = Object.values(sortedFiles);
+    let sortedFilesArr: File[] = Object.values(sortedFiles);
     console.log(
       argv.a
-        ? `${sortedFiles.length} unique files found`
-        : `${sortedFiles.length} unique und correct named files found`
+        ? `${sortedFilesArr.length} unique files found`
+        : `${sortedFilesArr.length} unique und correct named files found`
     );
 
-    return sortedFiles;
+    return sortedFilesArr;
   }
 
-  async apiRequest(path, type) {
-    let response = await fetch(config.url + path, {
+  async fileRequest(file: string): Promise<File> {
+    let response = await fetch(`${config.url}/file/${file}`, {
       method: "GET",
       headers: {
         Authorization:
@@ -234,23 +245,47 @@ class StudIP {
           ).toString("base64"),
       },
     });
-
     if (!response.ok) {
       console.log("ERROR");
       return;
     }
+    return await response.json();
+  }
 
-    switch (type) {
-      case "text":
-        response = await response.text();
-        break;
-      case "file":
-        response = await response.arrayBuffer();
-        break;
-      default:
-        response = await response.json();
+  async userRequest(user: string): Promise<User> {
+    let response = await fetch(`${config.url}/user/${user}`, {
+      method: "GET",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            `${config.stud_ip.name}:${config.stud_ip.password}`
+          ).toString("base64"),
+      },
+    });
+    if (!response.ok) {
+      console.log("ERROR");
+      return;
     }
-    return response;
+    return await response.json();
+  }
+
+  async downloadRequest(file: string): Promise<ArrayBuffer> {
+    let response = await fetch(`${config.url}/file/${file}/download`, {
+      method: "GET",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            `${config.stud_ip.name}:${config.stud_ip.password}`
+          ).toString("base64"),
+      },
+    });
+    if (!response.ok) {
+      console.log("ERROR");
+      return;
+    }
+    return await response.arrayBuffer();
   }
 }
 
@@ -274,7 +309,7 @@ class StudIP {
     (argv.Prio - 1) * length,
     (argv.Prio - 1) * length + length
   );
-  for (i = 1; i <= rest; i++) {
+  for (let i = 1; i <= rest; i++) {
     if (argv.Prio == i) {
       download.push(sortedFiles[sortedFiles.length - 1 - rest + i]);
     }

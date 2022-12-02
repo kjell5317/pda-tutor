@@ -2,21 +2,27 @@
   "name": "cli-pda_tutor",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc"
   },
   "keywords": [],
   "author": "kjell5317",
   "license": "ISC",
   "bin": {
-    "pdaTutor": "index.js"
+    "pdaTutor": "src/index.js"
   },
   "dependencies": {
-    "await-exec": "^0.1.2",
     "jsonschema": "^1.4.1",
     "node-fetch": "^2.6.7",
     "selenium-webdriver": "^4.5.0",
     "yargs": "^17.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.9",
+    "@types/node-fetch": "^2.6.2",
+    "@types/selenium-webdriver": "^4.1.9",
+    "typescript": "^5.0.0-dev.20221130"
   }
 }
