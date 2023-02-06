@@ -13,7 +13,6 @@
     "pdaTutor": "index.js"
   },
   "dependencies": {
-    "await-exec": "^0.1.2",
     "jsonschema": "^1.4.1",
     "node-fetch": "^2.6.7",
     "selenium-webdriver": "^4.5.0",
