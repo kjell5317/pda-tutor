@@ -17,7 +17,9 @@
 1. Add `C:\bin` (DO NOT delete anything else)
 
 ## Configuration
+
 1. Create `config.json` in the directory that your console outputs with the following content:
+
 ```json
 {
   "stud_ip": {
@@ -35,6 +37,7 @@
   "downloadPrefix": "" // string: choose a path on your machine where the files should be downloaded to
 }
 ```
+
 Enter your values as described in the comments
 
 `pdaWS2223.config.json` is an example
@@ -43,7 +46,8 @@ Enter your values as described in the comments
 
 Run `npx cli-pda_tutor` followed by the number of the current exercise and your section number from 0 to max number of tutors. Example: `npx cli-pda_tutor 1 1`
 
-### Flags:
+### Flags
+
 * `-l` lists the files you would get but does not download them. Can not be used with `-u`
 * `-m` outputs the email address of all students who hand over files with wrong names
 * `-a` downloads all files, even if the name is wrong. Can not be used with `-u` or `-m`
