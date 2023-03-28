@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 
-const config = require("./config.json");
-
 import fetch from "node-fetch";
 import { Builder, By, Key, until } from "selenium-webdriver";
-import { existsSync, mkdirSync, unlinkSync, writeFile } from "fs";
+import { existsSync, mkdirSync, unlinkSync, appendFile, writeFile } from "fs";
 import { exit } from "process";
 import { exec } from "child_process";
+
 const validate = require("jsonschema").validate;
 
+if (!existsSync(`${__dirname}/config.json`)) {
+  console.log("Please create config.json at " + __dirname);
+  exit();
+}
+const config = require("./config.json");
+
 var argv = require("yargs/yargs")(process.argv.slice(2))
+  .strict()
   .usage("Usage: $0 <Blatt> <Prio> [Options]")
   .boolean("a")
   .alias("a", "all")
@@ -20,8 +26,12 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
   .boolean("m")
   .alias("m", "mail")
   .describe(
+    "m",
     "Gibt eine CSV-Liste mit den E-Mails von falsch benannten Dateien aus"
   )
+  .boolean("l")
+  .alias("l", "list")
+  .describe("l", "Dateinamen auflisten ohne herunterzuladen")
   .command(
     "$0 <Blatt> <Prio>",
     "Abgaben verteilen und herunterladen",
@@ -46,6 +56,9 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
     }
     if (argv.u && argv.a) {
       return "--unzip und --all können nicht zusammen benutzt werden";
+    }
+    if (argv.u && argv.l) {
+      return "--unzip und --list können nicht zusammen benutzt werden";
     }
     if (argv.m && argv.a) {
       return "--mail und --all können nicht zusammen benutzt werden";
@@ -121,12 +134,14 @@ interface User {
 class StudIP {
   async downloadFiles(sortedFiles: File[], blatt: number) {
     if (!sortedFiles) return;
-    console.info(`Downloading ${sortedFiles.length} files...`);
+    console.log(`Lade ${sortedFiles.length} Dateien herunter...`);
     if (!existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
       mkdirSync(`${config.downloadPrefix}/UB${blatt}`);
     }
-    writeFile(
-      `${config.downloadPrefix}/UB${blatt}/score_X_${blatt}.csv`,
+    appendFile(
+      `${config.downloadPrefix}/UB${blatt}/score_${
+        config.me == undefined ? "X" : config.me
+      }_${blatt}.csv`,
       sortedFiles
         .map((file) =>
           file.name
@@ -134,7 +149,7 @@ class StudIP {
             .replace(".zip", "")
             .replaceAll("_", " ")
         )
-        .join(";\n") + ";",
+        .join(";\n") + ";\n",
       "utf8",
       (err) => {
         if (err) console.log(err);
@@ -159,7 +174,7 @@ class StudIP {
     let driver = await new Builder().forBrowser("chrome").build();
     let ids = [];
     let result = [];
-    console.log("Getting all file IDs in folder...");
+    console.log("Hole alle Datei-IDs...");
     try {
       await driver.get(
         `${config.url.replace("api", "dispatch")}course/files/index/${
@@ -174,7 +189,7 @@ class StudIP {
           .findElement(By.css("#password"))
           .sendKeys(config.stud_ip.password, Key.RETURN);
       } catch (err) {
-        console.log("You are already logged in");
+        console.log("Du bist bereits angemeldet");
       }
       await driver.wait(until.elementLocated(By.css("tbody.files tr")), 5000);
       let files = await driver.findElements(By.css("tbody.files tr"));
@@ -187,7 +202,7 @@ class StudIP {
     } finally {
       await driver.quit();
     }
-    console.log(`Getting metadata of ${ids.length} files...`);
+    console.log(`Hole die Metadaten von ${ids.length} Dateien...`);
     for (const id of ids) {
       result.push(await this.fileRequest(`file/${id}`));
     }
@@ -206,12 +221,14 @@ class StudIP {
         )
         .map((file) => file.user_id)
         .filter((v, i, a) => a.indexOf(v) === i);
-      if (wrong.length > 0) console.log("Studenten mit falscher Abgabe:");
-      let output: string;
-      for (const user of wrong) {
-        output += (await this.userRequest(user)).email + ";";
+      if (argv.m) {
+        if (wrong.length > 0) console.log("Studenten mit falscher Abgabe:");
+        let output = "";
+        for (const user of wrong) {
+          output += (await this.userRequest(`user/${user}`)).email + ";";
+        }
+        console.log(output);
       }
-
       files = files.filter(
         (file) => file.name.match(new RegExp(config.regEx.replace("\\d{2}", argv.Blatt)))
       );
@@ -219,16 +236,17 @@ class StudIP {
     let authors = {};
     let sortedFiles = {};
     for (const file of files) {
-      if (file.user_id in authors && authors[file.user_id] <= file.mkdate)
+      if (file.user_id in authors && authors[file.user_id] > file.mkdate) {
         continue;
+      }
       authors[file.user_id] = file.mkdate;
       sortedFiles[file.user_id] = file;
     }
     let sortedFilesArr: File[] = Object.values(sortedFiles);
     console.log(
       argv.a
-        ? `${sortedFilesArr.length} unique files found`
-        : `${sortedFilesArr.length} unique und correct named files found`
+        ? `${sortedFilesArr.length} Dateien von verschiedenen Autoren gefunden`
+        : `${sortedFilesArr.length} korrekt benannten Dateien von verschiedenen Autoren gefunden`
     );
 
     return sortedFilesArr;
@@ -246,7 +264,7 @@ class StudIP {
       },
     });
     if (!response.ok) {
-      console.log("ERROR");
+      console.log("Stud.IP API Error");
       return;
     }
     return await response.json();
@@ -293,6 +311,7 @@ class StudIP {
   let res = validate(config, schema);
   if (!res.valid) {
     console.log(res.errors);
+    console.log("config.json ist ungültig");
     exit();
   }
 
@@ -303,7 +322,9 @@ class StudIP {
   if (!sortedFiles) return;
   let length = Math.floor(sortedFiles.length / config.tutors);
   let rest = sortedFiles.length % config.tutors;
-  console.log(`${length} files for each tutor and ${rest} left files`);
+  console.log(
+    `${length} Datei(en) für jeden Tutor und ${rest} Datei(en) für die ersten Tutoren`
+  );
 
   let download = sortedFiles.slice(
     (argv.Prio - 1) * length,
@@ -314,5 +335,9 @@ class StudIP {
       download.push(sortedFiles[sortedFiles.length - 1 - rest + i]);
     }
   }
-  await studIP.downloadFiles(download, argv.Blatt);
+  if (argv.l) {
+    console.log("\t" + download.map((file) => file.name).join("\n\t"));
+  } else {
+    await studIP.downloadFiles(download, argv.Blatt);
+  }
 })();
