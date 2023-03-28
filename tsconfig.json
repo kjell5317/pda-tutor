@@ -1,9 +1,0 @@
-{
-  "compilerOptions": {
-    "sourceMap": true,
-    "outDir": "dist",
-    "target": "ES2021",
-    "moduleResolution": "node"
-  },
-  "include": ["index.ts"]
-}
