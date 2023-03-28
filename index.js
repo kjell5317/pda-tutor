@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 
-const config = require("./config.json");
-
 const fetch = require("node-fetch");
 const { Builder, By, Key, until } = require("selenium-webdriver");
 const fs = require("fs");
 const { exec } = require("child_process");
 const { exit } = require("process");
 const validate = require("jsonschema").validate;
+
+if (!fs.existsSync(`${__dirname}/config.json`)) {
+  console.log("Please create config.json at " + __dirname);
+  exit();
+}
+const config = require("./config.json");
 
 var argv = require("yargs/yargs")(process.argv.slice(2))
   .strict()

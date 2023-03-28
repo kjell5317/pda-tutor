@@ -1,17 +1,18 @@
 {
   "name": "cli-pda_tutor",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.0.1",
+  "description": "Download the assignments of students from Stud.IP",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "repository": "https://github.com/kjell5317/cli-pda_tutor",
+  "keywords": [
+    "cli"
+  ],
   "author": "kjell5317",
   "license": "ISC",
-  "bin": {
-    "pdaTutor": "index.js"
-  },
+  "bin": "./index.js",
   "dependencies": {
     "jsonschema": "^1.4.1",
     "node-fetch": "^2.6.7",
