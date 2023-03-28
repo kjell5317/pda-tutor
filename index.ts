@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
-const fetch = require("node-fetch");
-const { Builder, By, Key, until } = require("selenium-webdriver");
-const fs = require("fs");
-const { exec } = require("child_process");
-const { exit } = require("process");
+import fetch from "node-fetch";
+import { Builder, By, Key, until } from "selenium-webdriver";
+import { existsSync, mkdirSync, unlinkSync, appendFile, writeFile } from "fs";
+import { exit } from "process";
+import { exec } from "child_process";
+
 const validate = require("jsonschema").validate;
 
-if (!fs.existsSync(`${__dirname}/config.json`)) {
+if (!existsSync(`${__dirname}/config.json`)) {
   console.log("Please create config.json at " + __dirname);
   exit();
 }
@@ -46,7 +47,7 @@ var argv = require("yargs/yargs")(process.argv.slice(2))
         });
     }
   )
-  .check((argv, options) => {
+  .check((argv) => {
     if (argv._.length > 0) {
       return "Zu viele Argumente";
     }
@@ -119,14 +120,25 @@ const schema = {
   ],
 };
 
+interface File {
+  name: string;
+  mkdate: number;
+  user_id: string;
+  id: string;
+}
+
+interface User {
+  email: string;
+}
+
 class StudIP {
-  async downloadFiles(sortedFiles, blatt) {
+  async downloadFiles(sortedFiles: File[], blatt: number) {
     if (!sortedFiles) return;
-    console.info(`Lade ${sortedFiles.length} Dateien herunter...`);
-    if (!fs.existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
-      fs.mkdirSync(`${config.downloadPrefix}/UB${blatt}`);
+    console.log(`Lade ${sortedFiles.length} Dateien herunter...`);
+    if (!existsSync(`${config.downloadPrefix}/UB${blatt}`)) {
+      mkdirSync(`${config.downloadPrefix}/UB${blatt}`);
     }
-    fs.appendFile(
+    appendFile(
       `${config.downloadPrefix}/UB${blatt}/score_${
         config.me == undefined ? "X" : config.me
       }_${blatt}.csv`,
@@ -145,20 +157,20 @@ class StudIP {
     );
     for (const file of sortedFiles) {
       const path = `${config.downloadPrefix}/UB${blatt}/${file.name}`;
-      const data = await this.apiRequest(`/file/${file.id}/download`, "file");
+      const data = await this.downloadRequest(file.id);
       const buffer = Buffer.from(data);
-      fs.writeFile(path, buffer, "binary", (err) => {
+      writeFile(path, buffer, "binary", (err) => {
         if (err) console.log(err);
       });
 
       if (argv.u) {
         exec(`open ${path}`);
-        setTimeout(() => fs.unlinkSync(path), 1000);
+        setTimeout(() => unlinkSync(path), 1000);
       }
     }
   }
 
-  async getAllFilesInFolder() {
+  async getAllFilesInFolder(): Promise<File[]> {
     let driver = await new Builder().forBrowser("chrome").build();
     let ids = [];
     let result = [];
@@ -192,19 +204,19 @@ class StudIP {
     }
     console.log(`Hole die Metadaten von ${ids.length} Dateien...`);
     for (const id of ids) {
-      result.push(await this.apiRequest(`file/${id}`));
+      result.push(await this.fileRequest(`file/${id}`));
     }
     return result;
   }
 
-  async sortFiles(files) {
+  async sortFiles(files: File[]): Promise<File[]> {
     if (!files) return;
     if (!argv.a) {
       let wrong = files
         .filter(
           (file) =>
             !file.name.match(
-              new RegExp(config.regEx) // .replace("\\d{2}", argv.Blatt)
+              new RegExp(config.regEx.replace("\\d{2}", argv.Blatt))
             )
         )
         .map((file) => file.user_id)
@@ -213,12 +225,12 @@ class StudIP {
         if (wrong.length > 0) console.log("Studenten mit falscher Abgabe:");
         let output = "";
         for (const user of wrong) {
-          output += (await this.apiRequest(`user/${user}`)).email + ";";
+          output += (await this.userRequest(`user/${user}`)).email + ";";
         }
         console.log(output);
       }
       files = files.filter(
-        (file) => file.name.match(new RegExp(config.regEx)) // .replace("\\d{2}", argv.Blatt)
+        (file) => file.name.match(new RegExp(config.regEx.replace("\\d{2}", argv.Blatt)))
       );
     }
     let authors = {};
@@ -230,18 +242,18 @@ class StudIP {
       authors[file.user_id] = file.mkdate;
       sortedFiles[file.user_id] = file;
     }
-    sortedFiles = Object.values(sortedFiles);
+    let sortedFilesArr: File[] = Object.values(sortedFiles);
     console.log(
       argv.a
-        ? `${sortedFiles.length} Dateien von verschiedenen Autoren gefunden`
-        : `${sortedFiles.length} korrekt benannten Dateien von verschiedenen Autoren gefunden`
+        ? `${sortedFilesArr.length} Dateien von verschiedenen Autoren gefunden`
+        : `${sortedFilesArr.length} korrekt benannten Dateien von verschiedenen Autoren gefunden`
     );
 
-    return sortedFiles;
+    return sortedFilesArr;
   }
 
-  async apiRequest(path, type) {
-    let response = await fetch(config.url + path, {
+  async fileRequest(file: string): Promise<File> {
+    let response = await fetch(`${config.url}/file/${file}`, {
       method: "GET",
       headers: {
         Authorization:
@@ -251,23 +263,47 @@ class StudIP {
           ).toString("base64"),
       },
     });
-
     if (!response.ok) {
       console.log("Stud.IP API Error");
       return;
     }
+    return await response.json();
+  }
 
-    switch (type) {
-      case "text":
-        response = await response.text();
-        break;
-      case "file":
-        response = await response.arrayBuffer();
-        break;
-      default:
-        response = await response.json();
+  async userRequest(user: string): Promise<User> {
+    let response = await fetch(`${config.url}/user/${user}`, {
+      method: "GET",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            `${config.stud_ip.name}:${config.stud_ip.password}`
+          ).toString("base64"),
+      },
+    });
+    if (!response.ok) {
+      console.log("ERROR");
+      return;
     }
-    return response;
+    return await response.json();
+  }
+
+  async downloadRequest(file: string): Promise<ArrayBuffer> {
+    let response = await fetch(`${config.url}/file/${file}/download`, {
+      method: "GET",
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(
+            `${config.stud_ip.name}:${config.stud_ip.password}`
+          ).toString("base64"),
+      },
+    });
+    if (!response.ok) {
+      console.log("ERROR");
+      return;
+    }
+    return await response.arrayBuffer();
   }
 }
 
