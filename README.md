@@ -36,6 +36,7 @@
 }
 ```
 Enter your values as described in the comments
+`pdaWS2223.config.json` is an example
 
 ## Usage
 
