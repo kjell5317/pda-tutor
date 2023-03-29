@@ -1,5 +1,7 @@
 # CLI PDA-Tutor
 
+This CLI allows you to distribute all assignments of students to the correcting tutors. Each tutor has to use the CLI and picks a unique number, so nobody is correcting the same. Wrong named files are excluded automaticlly.
+
 ## Installation
 
 1. Install [Nodejs](https://nodejs.org/en/download/)
