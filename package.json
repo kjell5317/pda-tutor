@@ -1,12 +1,12 @@
 {
-  "name": "cli-pda_tutor",
+  "name": "pda-tutor",
   "version": "1.0.2",
   "description": "Download the assignments of students from Stud.IP",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "repository": "https://github.com/kjell5317/cli-pda_tutor",
+  "repository": "https://github.com/kjell5317/pda-tutor",
   "keywords": [
     "cli"
   ],

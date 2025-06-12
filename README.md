@@ -9,7 +9,7 @@ This CLI allows you to distribute all assignments of students to the correcting 
 1. Install [Nodejs](https://nodejs.org/en/download/)
 1. Install [Chrome](https://www.google.de/google_chrome/download)
 1. Install [Chromedriver](http://chromedriver.storage.googleapis.com/index.html) and add it to your PATH
-1. Run `npx cli-pda_tutor`
+1. Run `npx pda-tutor`
 
 ### Add Chromedriver to your PATH (Windows)
 
@@ -48,7 +48,7 @@ Enter your values as described in the comments
 
 ## Usage
 
-Run `npx cli-pda_tutor` followed by the number of the current exercise and your section number from 0 to max number of tutors. Example: `npx cli-pda_tutor 1 1`
+Run `npx pda-tutor` followed by the number of the current exercise and your section number from 0 to max number of tutors. Example: `npx pda-tutor 1 1`
 
 ### Flags
 
