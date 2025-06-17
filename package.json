@@ -1,6 +1,6 @@
 {
   "name": "cli-pda_tutor",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Download the assignments of students from Stud.IP",
   "main": "index.js",
   "scripts": {
