@@ -1,6 +1,8 @@
+# CLI PDA-Tutor
+
 A good friend foud additional documentation about the StudIP API and created his own version of this CLI without the need of chromedriver. Please use his work [(AutoTutor)](https://github.com/galbatoriz/AutoTutor), because it's more comftable and I don't maintain this repository anymore.
 
-# CLI PDA-Tutor
+## Deprecation Notice
 
 This CLI allows you to distribute all assignments of students to the correcting tutors. Each tutor has to use the CLI and picks a unique number, so nobody is correcting the same. Wrong named files are excluded automaticlly.
 
